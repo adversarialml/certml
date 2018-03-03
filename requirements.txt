@@ -2,8 +2,6 @@ numpy
 scipy
 scikit-learn
 pandas
-tensorflow
-keras
 spacy
 h5py
 cvxpy
