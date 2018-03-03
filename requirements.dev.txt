@@ -1,3 +1,4 @@
 -r requirements.txt
 travis-sphinx
 Sphinx==1.6.6
+numpydoc
