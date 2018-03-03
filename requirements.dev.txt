@@ -1,0 +1,3 @@
+-r requirements.txt
+travis-sphinx
+Sphinx==1.3.2
