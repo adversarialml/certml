@@ -16,7 +16,7 @@ install:
 # command to run tests
 script:
   - pytest # or py.test for Python versions 3.5 and below
-  - py.test --cov=certml certml
+  - py.test --cov=certml --cov-report xml certml
   - travis-sphinx build --source=docs
 after_script:
   - ./cc-test-reporter after-build -t coverage.py --exit-code $TRAVIS_TEST_RESULT
