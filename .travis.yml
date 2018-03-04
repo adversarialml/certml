@@ -6,15 +6,22 @@ python:
   - "3.5"
   - "3.6"
   - "3.6-dev"  # 3.6 development branch
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
 # command to install dependencies
 install:
   - pip install -r requirements.dev.txt
 # command to run tests
 script:
   - pytest # or py.test for Python versions 3.5 and below
-  - py.test --cov=certml certml
-  - codeclimate-test-reporter --file .coverage
+  - py.test --cov=certml --cov-report=xml certml
+  - ./cc-test-reporter format-coverage -t coverage.py -o ./.coverage
+  - ./cc-test-reporter upload-coverage
   - travis-sphinx build --source=docs
+after_script:
+  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
 after_success:
   - codeclimate-test-reporter
   - travis-sphinx deploy --cname certify.ml
