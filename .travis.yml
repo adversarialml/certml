@@ -17,8 +17,6 @@ install:
 script:
   - pytest # or py.test for Python versions 3.5 and below
   - py.test --cov=certml --cov-report=xml certml
-  - ./cc-test-reporter format-coverage -t coverage.py -o ./.coverage
-  - ./cc-test-reporter upload-coverage
   - travis-sphinx build --source=docs
 after_script:
   - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
