@@ -12,6 +12,9 @@ install:
 # command to run tests
 script:
   - pytest # or py.test for Python versions 3.5 and below
+  - py.test --cov=certml certml
+  - codeclimate-test-reporter --file .coverage
   - travis-sphinx build --source=docs
 after_success:
+  - codeclimate-test-reporter
   - travis-sphinx deploy --cname certify.ml
