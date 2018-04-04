@@ -1,0 +1,297 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>certml.classifiers.linear_svm &#8212; Certified Defenses for Data Poisoning Attacks 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for certml.classifiers.linear_svm</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot; Linear SVM scikit-learn wrapper for rho squared parameter selection&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">cvxpy</span> <span class="k">as</span> <span class="nn">cvx</span>
+<span class="kn">import</span> <span class="nn">scipy.sparse</span> <span class="k">as</span> <span class="nn">sparse</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="k">import</span> <span class="n">svm</span>
+<span class="kn">from</span> <span class="nn">certml.certify</span> <span class="k">import</span> <span class="n">CertifiableMixin</span>
+<span class="kn">from</span> <span class="nn">certml.utils.cvx</span> <span class="k">import</span> <span class="n">cvx_dot</span>
+
+
+<div class="viewcode-block" id="LinearSVM"><a class="viewcode-back" href="../../../api.html#certml.classifiers.LinearSVM">[docs]</a><span class="k">class</span> <span class="nc">LinearSVM</span><span class="p">(</span><span class="n">svm</span><span class="o">.</span><span class="n">LinearSVC</span><span class="p">,</span> <span class="n">CertifiableMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Linear Support Vector Machine</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">upper_params_norm_sq</span><span class="p">,</span> <span class="n">use_bias</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cert_x</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cert_y</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="o">=</span> <span class="n">upper_params_norm_sq</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rho_sq_tol</span> <span class="o">=</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">weight_decay</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span> <span class="o">=</span> <span class="mf">0.001</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span> <span class="o">=</span> <span class="mf">256.0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span> <span class="o">=</span> <span class="mf">0.001</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">weight_decay</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">upper_weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_weight_decay</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_weight_decay</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">LinearSVM</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">tol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="s1">&#39;hinge&#39;</span><span class="p">,</span>
+                                        <span class="n">fit_intercept</span><span class="o">=</span><span class="n">use_bias</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span>
+                                        <span class="n">max_iter</span><span class="o">=</span><span class="mi">100000</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<div class="viewcode-block" id="LinearSVM.fit"><a class="viewcode-back" href="../../../api.html#certml.classifiers.LinearSVM.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">sample_weight</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Fit the Linear Support Vector Machine</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : np.ndarray of shape (instances, dimensions)</span>
+<span class="sd">            Input features</span>
+<span class="sd">        y : np.ndarray of shape (instances,)</span>
+<span class="sd">            Input labels</span>
+<span class="sd">        sample_weight : np.ndarray of shape (instances,)</span>
+<span class="sd">            ??? Weights for each training instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">y</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">y</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)),</span> <span class="s1">&#39;Input labels must be -1 or 1&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cert_x</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cert_y</span> <span class="o">=</span> <span class="n">y</span>
+
+        <span class="c1"># TODO This can get stuck in an infinite loop</span>
+        <span class="k">while</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> \
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span><span class="p">)</span> <span class="ow">or</span> \
+                <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">rho_sq_tol</span><span class="p">):</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Trying weight_decay </span><span class="si">%s</span><span class="s1">..&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">C</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">)</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">LinearSVM</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">sample_weight</span><span class="p">)</span>
+
+            <span class="n">params</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coef_</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">bias</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">intercept_</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">bias</span> <span class="o">**</span> <span class="mi">2</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">break</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Current params norm sq = </span><span class="si">%s</span><span class="s1">. Target = </span><span class="si">%s</span><span class="s1">.&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span><span class="p">))</span>
+            <span class="c1"># Current params are too small; need to make them bigger</span>
+            <span class="c1"># So we should reduce weight_decay</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">upper_weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span>
+
+                <span class="c1"># And if we are too close to the lower bound, we give up</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_wd_bound</span> <span class="o">+</span> <span class="mf">1e-5</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Too close to lower bound, breaking&#39;</span><span class="p">)</span>
+                    <span class="k">break</span>
+
+            <span class="c1"># Current params are too big; need to make them smaller</span>
+            <span class="c1"># So we should increase weight_decay</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">lower_weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span>
+
+                <span class="c1"># And if we are already too close to the upper bound, we should bump up the upper bound</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span> <span class="o">-</span> <span class="mf">1e-5</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">upper_wd_bound</span> <span class="o">*=</span> <span class="mi">2</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">upper_weight_decay</span> <span class="o">*=</span> <span class="mi">2</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span><span class="p">)</span> <span class="ow">or</span> \
+                    <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_params_norm_sq</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">params_norm_sq</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">rho_sq_tol</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_weight_decay</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_weight_decay</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span></div>
+
+<div class="viewcode-block" id="LinearSVM.cert_params"><a class="viewcode-back" href="../../../api.html#certml.classifiers.LinearSVM.cert_params">[docs]</a>    <span class="k">def</span> <span class="nf">cert_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Get the Certification Parameter Blob</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        params : dict</span>
+<span class="sd">            Certification parameter blob</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;classifier&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;loss&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cert_loss</span><span class="p">,</span>
+            <span class="s1">&#39;loss_grad&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cert_loss_grad</span><span class="p">,</span>
+            <span class="s1">&#39;loss_cvx&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cert_loss_cvx</span><span class="p">,</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;features&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cert_x</span><span class="p">,</span>
+                <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cert_y</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;coef&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">coef_</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">params</span></div>
+
+    <span class="k">def</span> <span class="nf">_cert_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">w</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Calculate Hinge Loss</span>
+
+<span class="sd">            Calculates the hinge loss.</span>
+
+<span class="sd">            Parameters</span>
+<span class="sd">            ----------</span>
+<span class="sd">            X : np.ndarray of shape (instances, dimensions)</span>
+<span class="sd">                Input Features</span>
+<span class="sd">            Y : np.ndarray of shape (instances,)</span>
+<span class="sd">                Input Labels</span>
+<span class="sd">            sample_weights : None or np.ndarray of shape (???)</span>
+<span class="sd">                ???</span>
+
+<span class="sd">            Returns</span>
+<span class="sd">            -------</span>
+<span class="sd">            loss : float</span>
+<span class="sd">                Hinge loss</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">w</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">b</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coef_</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">intercept_</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">sample_weights</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sample_weights</span> <span class="o">=</span> <span class="n">sample_weights</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample_weights</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample_weights</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">Y</span> <span class="o">*</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="o">+</span> <span class="n">b</span><span class="p">),</span> <span class="mi">0</span><span class="p">)))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">Y</span> <span class="o">*</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="o">+</span> <span class="n">b</span><span class="p">),</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_cert_loss_cvx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cvx_x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">w</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Hinge Loss CVX Optimization Problem</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cvx_x</span>
+<span class="sd">        y : int</span>
+<span class="sd">            Data label</span>
+<span class="sd">        w : np.ndarray of shape (dimensions,)</span>
+<span class="sd">            Parameters</span>
+<span class="sd">        project : np.ndarray of shape ()</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        loss_cvx</span>
+<span class="sd">            CVX optimization objective</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">project</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">loss_cvx</span> <span class="o">=</span> <span class="n">cvx</span><span class="o">.</span><span class="n">Maximize</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">y</span> <span class="o">*</span> <span class="n">cvx_dot</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">cvx_x</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">loss_cvx</span>
+
+    <span class="k">def</span> <span class="nf">_cert_loss_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">w</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Gradient of Hinge Loss</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        w : np.ndarray of shape (dimensions,)</span>
+<span class="sd">            Coefficients</span>
+<span class="sd">        b : float</span>
+<span class="sd">            Intercept</span>
+<span class="sd">        X : np.ndarray of shape (instances, dimensions)</span>
+<span class="sd">            Input Features</span>
+<span class="sd">        Y : np.ndarray of shape (instances,)</span>
+<span class="sd">            Input Labels</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        grad_w : np.ndarray of shape (dimensions,)</span>
+<span class="sd">            Gradient of coefficients</span>
+<span class="sd">        grad_b : float</span>
+<span class="sd">            Gradient of intercept</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">w</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">b</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coef_</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">intercept_</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+        <span class="n">margins</span> <span class="o">=</span> <span class="n">Y</span> <span class="o">*</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">sv_indicators</span> <span class="o">=</span> <span class="n">margins</span> <span class="o">&lt;</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
+            <span class="n">grad_w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                <span class="o">-</span><span class="n">sparse</span><span class="o">.</span><span class="n">diags</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">Y</span><span class="p">[</span><span class="n">sv_indicators</span><span class="p">],</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)))</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+                    <span class="n">X</span><span class="p">[</span><span class="n">sv_indicators</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">grad_w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">grad_w</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">grad_w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">Y</span><span class="p">[</span><span class="n">sv_indicators</span><span class="p">],</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">*</span> <span class="n">X</span><span class="p">[</span><span class="n">sv_indicators</span><span class="p">,</span> <span class="p">:],</span>
+                <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">grad_b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">Y</span><span class="p">[</span><span class="n">sv_indicators</span><span class="p">],</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span> <span class="o">/</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">grad_w</span><span class="p">,</span> <span class="n">grad_b</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Website and modified code by: Christopher Frederickson. Based on work by: Jacob Steinhardt, Pang Wei Koh, and Percy Liang..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

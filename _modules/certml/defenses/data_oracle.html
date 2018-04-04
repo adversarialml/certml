@@ -1,0 +1,209 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>certml.defenses.data_oracle &#8212; Certified Defenses for Data Poisoning Attacks 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for certml.defenses.data_oracle</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Data Oracle Defense&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">certml.utils.data</span> <span class="k">import</span> <span class="n">generate_class_map</span><span class="p">,</span> <span class="n">get_centroids</span><span class="p">,</span> \
+    <span class="n">get_centroid_vec</span><span class="p">,</span> <span class="n">filter_points_outside_feasible_set</span>
+<span class="kn">from</span> <span class="nn">certml.defenses</span> <span class="k">import</span> <span class="n">BaseDefense</span>
+<span class="kn">from</span> <span class="nn">certml.certify</span> <span class="k">import</span> <span class="n">CertifiableMixin</span>
+<span class="kn">import</span> <span class="nn">cvxpy</span> <span class="k">as</span> <span class="nn">cvx</span>
+<span class="kn">from</span> <span class="nn">certml.utils.cvx</span> <span class="k">import</span> <span class="n">cvx_dot</span>
+
+
+<div class="viewcode-block" id="DataOracle"><a class="viewcode-back" href="../../../api.html#certml.defenses.DataOracle">[docs]</a><span class="k">class</span> <span class="nc">DataOracle</span><span class="p">(</span><span class="n">BaseDefense</span><span class="p">,</span> <span class="n">CertifiableMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Data Oracle Defense</span>
+
+<span class="sd">    The data oracle defense determined the centroids of the data</span>
+<span class="sd">    from a trusted data source. Then filters data outside of the</span>
+<span class="sd">    feasible set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;sphere&#39;</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">percentile</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Although the slab defense is a valid method, the optimal attack points are unbounded.</span>
+<span class="sd">        TODO: Change the slab method to use both sphere are slab. Or some other better formulation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mode</span>
+<span class="sd">        radius</span>
+<span class="sd">        percentile</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">radius</span> <span class="o">=</span> <span class="n">radius</span>  <span class="c1"># If radius is directly set, percentile is ignored.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">percentile</span> <span class="o">=</span> <span class="n">percentile</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">radii</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">centroid_vec</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">class_map</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="DataOracle.fit_trusted"><a class="viewcode-back" href="../../../api.html#certml.defenses.DataOracle.fit_trusted">[docs]</a>    <span class="k">def</span> <span class="nf">fit_trusted</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Fit on Trusted Dataset</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : np.ndarray of shape (instances, dimensions)</span>
+<span class="sd">            Input features</span>
+<span class="sd">        y : np.ndarray of shape (instances,)</span>
+<span class="sd">            Input labels</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">class_map</span> <span class="o">=</span> <span class="n">generate_class_map</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span> <span class="o">=</span> <span class="n">get_centroids</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_map</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">centroid_vec</span> <span class="o">=</span> <span class="n">get_centroid_vec</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">radius</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Radii set by absolute radius parameter</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">radii</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">radius</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">class_map</span><span class="p">),))</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">percentile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Radii set by percentile parameter</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Percentile radii not implemented!&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid radius or radii argument!&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DataOracle.transform"><a class="viewcode-back" href="../../../api.html#certml.defenses.DataOracle.transform">[docs]</a>    <span class="k">def</span> <span class="nf">transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Filter Input Data</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : np.ndarray of shape (instances, dimensions)</span>
+<span class="sd">            Input features</span>
+<span class="sd">        y : np.ndarray of shape (instances,)</span>
+<span class="sd">            Input labels</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        x_transformed : np.ndarray of shape (instances, dimensions)</span>
+<span class="sd">            Filtered input features</span>
+<span class="sd">        y_transformed : np.ndarray of shape (instances,)</span>
+<span class="sd">            Filtered input labels</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Training</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="ow">is</span> <span class="s1">&#39;sphere&#39;</span><span class="p">:</span>
+                <span class="n">sphere_radii</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">radii</span>
+                <span class="n">slab_radii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">radii</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="ow">is</span> <span class="s1">&#39;slab&#39;</span><span class="p">:</span>
+                <span class="n">sphere_radii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">radii</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+                <span class="n">slab_radii</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">radii</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid mode!&#39;</span><span class="p">)</span>
+            <span class="n">x_transformed</span><span class="p">,</span> <span class="n">y_transformed</span> <span class="o">=</span> <span class="n">filter_points_outside_feasible_set</span><span class="p">(</span>
+                <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroid_vec</span><span class="p">,</span> <span class="n">sphere_radii</span><span class="p">,</span> <span class="n">slab_radii</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_map</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">x_transformed</span><span class="p">,</span> <span class="n">y_transformed</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># Testing</span>
+            <span class="k">return</span> <span class="n">X</span></div>
+
+    <span class="k">def</span> <span class="nf">cert_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;defense&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;constraints_cvx&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cert_constraints_cvx</span><span class="p">,</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;class_map&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_map</span><span class="p">,</span>
+                <span class="s1">&#39;centroids&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">,</span>
+                <span class="s1">&#39;centroid_vec&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroid_vec</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">params</span>
+
+    <span class="k">def</span> <span class="nf">_cert_constraints_cvx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cvx_x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">constraints_cvx</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">y_ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_map</span><span class="p">[</span><span class="n">y</span><span class="p">]</span>
+
+        <span class="n">cent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroids</span><span class="p">[</span><span class="n">y_ind</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">cent_vec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">centroid_vec</span>
+        <span class="k">if</span> <span class="n">project</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cent</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cent</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">cent_vec</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cent_vec</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+        <span class="n">cvx_x_c</span> <span class="o">=</span> <span class="n">cvx_x</span> <span class="o">-</span> <span class="n">cent</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="ow">is</span> <span class="s1">&#39;sphere&#39;</span><span class="p">:</span>
+            <span class="n">constraints_cvx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cvx</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">cvx_x_c</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">radii</span><span class="p">[</span><span class="n">y_ind</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="ow">is</span> <span class="s1">&#39;slab&#39;</span><span class="p">:</span>
+            <span class="n">constraints_cvx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cvx</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cvx_dot</span><span class="p">(</span><span class="n">cent_vec</span><span class="p">,</span> <span class="n">cvx_x_c</span><span class="p">))</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">radii</span><span class="p">[</span><span class="n">y_ind</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid mode type&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">constraints_cvx</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Website and modified code by: Christopher Frederickson. Based on work by: Jacob Steinhardt, Pang Wei Koh, and Percy Liang..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

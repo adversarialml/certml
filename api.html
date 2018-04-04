@@ -1,0 +1,262 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>The certml API reference &#8212; Certified Defenses for Data Poisoning Attacks 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to Certified Defenses for Data Poisoning Attacks’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-certml">
+<span id="the-certml-api-reference"></span><h1>The certml API reference<a class="headerlink" href="#module-certml" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-certml.attacks">
+<span id="the-attacks-module"></span><h2>The “attacks” module<a class="headerlink" href="#module-certml.attacks" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-certml.certify">
+<span id="the-certify-module"></span><h2>The “certify” module<a class="headerlink" href="#module-certml.certify" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="certml.certify.CertifiableMixin">
+<em class="property">class </em><code class="descclassname">certml.certify.</code><code class="descname">CertifiableMixin</code><a class="reference internal" href="_modules/certml/certify/certifiable.html#CertifiableMixin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.certify.CertifiableMixin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Certifiable Defense</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-certml.classifiers">
+<span id="the-classifiers-module"></span><h2>The “classifiers” module<a class="headerlink" href="#module-certml.classifiers" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="certml.classifiers.LinearSVM">
+<em class="property">class </em><code class="descclassname">certml.classifiers.</code><code class="descname">LinearSVM</code><span class="sig-paren">(</span><em>upper_params_norm_sq</em>, <em>use_bias</em>, <em>weight_decay=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/classifiers/linear_svm.html#LinearSVM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.classifiers.LinearSVM" title="Permalink to this definition">¶</a></dt>
+<dd><p>Linear Support Vector Machine</p>
+<dl class="method">
+<dt id="certml.classifiers.LinearSVM.cert_params">
+<code class="descname">cert_params</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/classifiers/linear_svm.html#LinearSVM.cert_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.classifiers.LinearSVM.cert_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the Certification Parameter Blob</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>params</strong> <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
+<dd><p class="first last">Certification parameter blob</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="certml.classifiers.LinearSVM.fit">
+<code class="descname">fit</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>sample_weight=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/classifiers/linear_svm.html#LinearSVM.fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.classifiers.LinearSVM.fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fit the Linear Support Vector Machine</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>X</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances, dimensions)</span></dt>
+<dd><p class="first last">Input features</p>
+</dd>
+<dt><strong>y</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances,)</span></dt>
+<dd><p class="first last">Input labels</p>
+</dd>
+<dt><strong>sample_weight</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances,)</span></dt>
+<dd><p class="first last">??? Weights for each training instance</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-certml.defenses">
+<span id="the-defenses-module"></span><h2>The “defenses” module<a class="headerlink" href="#module-certml.defenses" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="certml.defenses.BaseDefense">
+<em class="property">class </em><code class="descclassname">certml.defenses.</code><code class="descname">BaseDefense</code><a class="reference internal" href="_modules/certml/defenses/base.html#BaseDefense"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.defenses.BaseDefense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base Defense</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="certml.defenses.DataOracle">
+<em class="property">class </em><code class="descclassname">certml.defenses.</code><code class="descname">DataOracle</code><span class="sig-paren">(</span><em>mode='sphere'</em>, <em>radius=None</em>, <em>percentile=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/defenses/data_oracle.html#DataOracle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.defenses.DataOracle" title="Permalink to this definition">¶</a></dt>
+<dd><p>Data Oracle Defense</p>
+<p>The data oracle defense determined the centroids of the data
+from a trusted data source. Then filters data outside of the
+feasible set.</p>
+<dl class="method">
+<dt id="certml.defenses.DataOracle.fit_trusted">
+<code class="descname">fit_trusted</code><span class="sig-paren">(</span><em>X</em>, <em>y</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/defenses/data_oracle.html#DataOracle.fit_trusted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.defenses.DataOracle.fit_trusted" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fit on Trusted Dataset</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>X</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances, dimensions)</span></dt>
+<dd><p class="first last">Input features</p>
+</dd>
+<dt><strong>y</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances,)</span></dt>
+<dd><p class="first last">Input labels</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="certml.defenses.DataOracle.transform">
+<code class="descname">transform</code><span class="sig-paren">(</span><em>X</em>, <em>y=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/defenses/data_oracle.html#DataOracle.transform"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.defenses.DataOracle.transform" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter Input Data</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><dl class="first docutils">
+<dt><strong>X</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances, dimensions)</span></dt>
+<dd><p class="first last">Input features</p>
+</dd>
+<dt><strong>y</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances,)</span></dt>
+<dd><p class="first last">Input labels</p>
+</dd>
+</dl>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><dl class="first last docutils">
+<dt><strong>x_transformed</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances, dimensions)</span></dt>
+<dd><p class="first last">Filtered input features</p>
+</dd>
+<dt><strong>y_transformed</strong> <span class="classifier-delimiter">:</span> <span class="classifier">np.ndarray of shape (instances,)</span></dt>
+<dd><p class="first last">Filtered input labels</p>
+</dd>
+</dl>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-certml.pipeline">
+<span id="the-pipeline-module"></span><h2>The “pipeline” module<a class="headerlink" href="#module-certml.pipeline" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="certml.pipeline.Pipeline">
+<em class="property">class </em><code class="descclassname">certml.pipeline.</code><code class="descname">Pipeline</code><span class="sig-paren">(</span><em>steps</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/pipeline/pipeline.html#Pipeline"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.pipeline.Pipeline" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="certml.pipeline.Pipeline.fit">
+<code class="descname">fit</code><span class="sig-paren">(</span><em>X</em>, <em>y</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/pipeline/pipeline.html#Pipeline.fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.pipeline.Pipeline.fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply the transformations and fit the final estimator</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="certml.pipeline.Pipeline.fit_trusted">
+<code class="descname">fit_trusted</code><span class="sig-paren">(</span><em>X</em>, <em>y</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/pipeline/pipeline.html#Pipeline.fit_trusted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.pipeline.Pipeline.fit_trusted" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply the transformations and fit the final estimator</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="certml.pipeline.Pipeline.partial_fit">
+<code class="descname">partial_fit</code><span class="sig-paren">(</span><em>X</em>, <em>y</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/pipeline/pipeline.html#Pipeline.partial_fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.pipeline.Pipeline.partial_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply the transformations and then partial fit the final estimator</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="certml.pipeline.Pipeline.predict">
+<code class="descname">predict</code><span class="sig-paren">(</span><em>X</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/certml/pipeline/pipeline.html#Pipeline.predict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#certml.pipeline.Pipeline.predict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply the transformations and predict the final estimator</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-certml.utils">
+<span id="the-utils-module"></span><h2>The “utils” module<a class="headerlink" href="#module-certml.utils" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to Certified Defenses for Data Poisoning Attacks’s documentation!</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Website and modified code by: Christopher Frederickson. Based on work by: Jacob Steinhardt, Pang Wei Koh, and Percy Liang..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/api.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
