@@ -503,6 +503,7 @@ def get_projection_matrix(w, centroid, centroid_vec):
         Projection matrix that projects a vector onto the subspace spanned by
             w, centroid, and centroid_vec
     """
+    assert w.size > 3, 'Dimensionality must be greater than 3 to project to 3 dimensions'
     subspace = np.concatenate((
         w.reshape(1, -1),
         centroid.reshape(1, -1),

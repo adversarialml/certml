@@ -708,7 +708,7 @@ class Minimizer(object):
         x : np.ndarray
             Optimal x;
         """
-        P = get_projection_matrix(w, centroid, centroid_vec)    
+        P = get_projection_matrix(w, centroid, centroid_vec)
         
         self.cvx_y.value = y
         self.cvx_w.value = P.dot(w.reshape(-1))

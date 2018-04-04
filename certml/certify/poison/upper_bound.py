@@ -3,13 +3,25 @@
 import numpy as np
 import cvxpy as cvx
 from certml.utils.data import get_projection_matrix
-from certml.utils.cvx import cvx_dot
 
 
 class UpperBound(object):
-
+    """Upper Bound on Loss due to Data Poisoning Attacks"""
     def __init__(self, pipeline, norm_sq_constraint=None, max_iter=None, num_iter_to_throw_out=None,
                  learning_rate=None, verbose=True, print_interval=500):
+        """Upper Bound on Loss due to Data Poisoning Attacks
+
+        Parameters
+        ----------
+        pipeline :
+        norm_sq_constraint : float
+            ???
+        max_iter : int
+        num_iter_to_throw_out : int
+        learning_rate : float
+        verbose : bool
+        print_interval : int
+        """
         # Input Parameters
         self.norm_sq_constraint = norm_sq_constraint
         self.max_iter = max_iter
@@ -46,6 +58,8 @@ class UpperBound(object):
 
         self.constraints_cvx = defense['constraints_cvx']
         self.class_map = defense['data']['class_map']
+        self.centroids = defense['data']['centroids']
+        self.centroid_vec = defense['data']['centroid_vec']
 
         self.x_c = None
         self.y_c = None
@@ -58,6 +72,22 @@ class UpperBound(object):
         self.best_upper_bad_acc = None
 
     def certify(self, epsilons):
+        """ Certify the Machine Learning Pipeline with particular Epsilons
+
+        Parameters
+        ----------
+        epsilons : np.ndarray of shape (Num Epsilons,)
+            Array of epsilon (fraction of normal data add as poisoned data)
+
+        Returns
+        -------
+        total_loss : np.ndarray of shape (Num Epsilons,)
+            Total loss due to both normal and adversarial data
+        good_loss : np.ndarray of shape (Num Epsilons,)
+            Loss due to only normal data
+        bad_loss : np.ndarray of shape (Num Epsilons,)
+            Loss due to only adversarial data
+        """
         total_loss = np.zeros_like(epsilons)
         good_loss = np.zeros_like(epsilons)
         bad_loss = np.zeros_like(epsilons)
@@ -201,21 +231,62 @@ class UpperBound(object):
         return self.best_upper_bound, self.best_upper_good_acc, self.best_upper_bad_loss
 
     def minimize_over_feasible_set(self, y, w):
+        """ Minimize over Feasible Set
+
+        Create and solve the optimization problem to find
+        the attack point that maximizes the loss of the defender
+        constrained by the feasible set created by the defender's
+        defense algorithm.
+
+        For example, using the LinearSVM defender with the DataOracle sphere
+        defense, the optimization problem that is solved is
+
+        .. math
+            max_x & 1 - y w^T x
+            s.t.  &  |<x - c, c_vec>| < r
+
+        where
+            c :      class centroid
+            c_vec :  vector between the two class centroids
+
+        In certain cases, the optimization problem will be projected down to a
+        smaller subspace to simplify the optimization problem. See the correspondence
+        with the authors of Steinhardt et al. 2017 below.
+
+        "You're right that we project everything down to a smaller subspace
+        before solving the optimization problem. It is just to speed up the
+        code execution, as you mentioned; the problems are mathematically
+        equivalent, in the sense that one can always go from the solution in
+        the reduced space to the solution in the full space."
+
+        Parameters
+        ----------
+        y : int
+            Desired attack point label
+        w : np.ndarray of shape (dimensions,)
+            Objective function weights
+
+        Returns
+        -------
+        x_opt : np.ndarray of shape (dimensions,)
+            The optimal attack point
+        """
         y_ind = self.class_map[y]
 
-        cvx_x = cvx.Variable(w.size)
+        # Get projection matrix to project down to lower subspace
+        d = 3
+        projection = get_projection_matrix(w, self.centroids[y_ind, :], self.centroid_vec)
 
-        objective = self.loss_cvx(cvx_x, y=y_ind, w=w)
-        constraints_all = self.constraints_cvx(cvx_x)
+        cvx_x = cvx.Variable(d)
 
-        constraints = list()
-        constraints.append(constraints_all[y_ind])
+        # Get the objective and constraints from the classifier and defense
+        objective = self.loss_cvx(cvx_x, y=y, w=w, project=projection)
+        constraints = self.constraints_cvx(cvx_x, y=y, project=projection)
 
+        # Setup and solve the optimization problem
         prob = cvx.Problem(objective, constraints)
         prob.solve(verbose=self.verbose)
 
+        # Get the results and project it back to the full space
         x_opt = np.array(cvx_x.value).reshape(-1)
-
-        # TODO Project onto feasible set
-
-        return x_opt
+        return x_opt.dot(projection)

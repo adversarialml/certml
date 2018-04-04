@@ -6,8 +6,8 @@ import scipy.sparse as sparse
 import scipy.io as sio
 import IPython
 
-DATA_FOLDER = '../data'
-OUTPUT_FOLDER = '../'
+DATA_FOLDER = '../../data'
+OUTPUT_FOLDER = '../../'
 
 # WEB_FOLDER = '/afs/cs.stanford.edu/u/jsteinhardt/www/reports'
 

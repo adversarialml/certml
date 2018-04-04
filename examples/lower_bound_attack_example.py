@@ -8,11 +8,12 @@ from sklearn.datasets import make_blobs
 import matplotlib.pyplot as plt
 import numpy as np
 
-x, y = make_blobs(n_samples=100, n_features=2, centers=2)
+x, y = make_blobs(n_samples=100, n_features=4, centers=2)
+y = (y * 2) - 1
 
 steps = [
-    ('Data Oracle', DataOracle(mode='sphere', radius=5)),
-    ('Linear SVM', LinearSVM(upper_params_norm_sq=1, use_bias=True))
+    ('Data Oracle', DataOracle(mode='slab', radius=50)),
+    ('Linear SVM', LinearSVM(upper_params_norm_sq=0.005, use_bias=True))
 ]
 
 # The pipeline that the attacker controls
@@ -20,16 +21,16 @@ pipeline_attacker = Pipeline(steps)
 pipeline_attacker.fit_trusted(x, y)
 pipeline_attacker.fit(x, y)
 
-# The pipeline that the defender controls
-pipeline_defender = Pipeline(steps)
-pipeline_defender.fit_trusted(x, y)
-
 # Get the attack points and poison the defenders training data
 attack = LowerBound(pipeline=pipeline_attacker, norm_sq_constraint=1,
                     max_iter=1000, num_iter_to_throw_out=10,
                     learning_rate=1, verbose=False, print_interval=500)
 
 x_c, y_c = attack.get_attack_points(0.3)
+
+# The pipeline that the defender controls
+pipeline_defender = Pipeline(steps)
+pipeline_defender.fit_trusted(x, y)
 
 x_poisoned = np.append(x, x_c, axis=0)
 y_poisoned = np.append(y, y_c, axis=0)

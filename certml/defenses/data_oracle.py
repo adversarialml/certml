@@ -6,6 +6,7 @@ from certml.utils.data import generate_class_map, get_centroids, \
 from certml.defenses import BaseDefense
 from certml.certify import CertifiableMixin
 import cvxpy as cvx
+from certml.utils.cvx import cvx_dot
 
 
 class DataOracle(BaseDefense, CertifiableMixin):
@@ -17,6 +18,17 @@ class DataOracle(BaseDefense, CertifiableMixin):
     """
 
     def __init__(self, mode='sphere', radius=None, percentile=None):
+        """
+
+        Although the slab defense is a valid method, the optimal attack points are unbounded.
+        TODO: Change the slab method to use both sphere are slab. Or some other better formulation.
+
+        Parameters
+        ----------
+        mode
+        radius
+        percentile
+        """
         self.mode = mode
         self.radius = radius  # If radius is directly set, percentile is ignored.
         self.percentile = percentile
@@ -83,24 +95,30 @@ class DataOracle(BaseDefense, CertifiableMixin):
             'type': 'defense',
             'constraints_cvx': self._cert_constraints_cvx,
             'data': {
-                'class_map': self.class_map
+                'class_map': self.class_map,
+                'centroids': self.centroids,
+                'centroid_vec': self.centroid_vec
             }
         }
         return params
 
-    def _cert_constraints_cvx(self, cvx_x):
-        num_classes = len(self.class_map)
-        constraints_cvx = [None] * num_classes
+    def _cert_constraints_cvx(self, cvx_x, y=None, project=None):
+        constraints_cvx = list()
+        y_ind = self.class_map[y]
 
-        for ind in range(num_classes):
+        cent = self.centroids[y_ind, :]
+        cent_vec = self.centroid_vec
+        if project is not None:
+            cent = project.dot(cent.reshape(-1))
+            cent_vec = project.dot(cent_vec.reshape(-1))
 
-            cvx_x_c = cvx_x - self.centroids[ind, :]
+        cvx_x_c = cvx_x - cent
 
-            if self.mode is 'sphere':
-                constraints_cvx[ind] = cvx.norm(cvx_x_c, 2) < self.radii[ind]
-            elif self.mode is 'slab':
-                constraints_cvx[ind] = cvx.abs(cvx.sum_entries(self.centroid_vec, cvx_x_c)) < self.radii[ind]
-            else:
-                raise ValueError('Invalid mode type')
+        if self.mode is 'sphere':
+            constraints_cvx.append(cvx.norm(cvx_x_c, 2) < self.radii[y_ind])
+        elif self.mode is 'slab':
+            constraints_cvx.append(cvx.abs(cvx_dot(cent_vec, cvx_x_c)) < self.radii[y_ind])
+        else:
+            raise ValueError('Invalid mode type')
 
         return constraints_cvx

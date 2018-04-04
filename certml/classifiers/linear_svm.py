@@ -1,14 +1,16 @@
 """ Linear SVM scikit-learn wrapper for rho squared parameter selection"""
 
 import numpy as np
+import cvxpy as cvx
 import scipy.sparse as sparse
 from sklearn import svm
 from certml.certify import CertifiableMixin
-import cvxpy as cvx
 from certml.utils.cvx import cvx_dot
 
 
 class LinearSVM(svm.LinearSVC, CertifiableMixin):
+    """Linear Support Vector Machine
+    """
     def __init__(self, upper_params_norm_sq, use_bias, weight_decay=None):
 
         self._cert_x = None
@@ -36,8 +38,23 @@ class LinearSVM(svm.LinearSVC, CertifiableMixin):
                                         max_iter=100000, verbose=True)
 
     def fit(self, X, y, sample_weight=None):
+        """ Fit the Linear Support Vector Machine
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (instances, dimensions)
+            Input features
+        y : np.ndarray of shape (instances,)
+            Input labels
+        sample_weight : np.ndarray of shape (instances,)
+            ??? Weights for each training instance
+        """
+        assert np.all((y == 1) | (y == -1)), 'Input labels must be -1 or 1'
+
         self._cert_x = X
         self._cert_y = y
+
+        # TODO This can get stuck in an infinite loop
         while (self.params_norm_sq is None) or \
                 (self.upper_params_norm_sq > self.params_norm_sq) or \
                 (np.abs(self.upper_params_norm_sq - self.params_norm_sq) > self.rho_sq_tol):
@@ -80,6 +97,13 @@ class LinearSVM(svm.LinearSVC, CertifiableMixin):
                 self.weight_decay = (self.upper_weight_decay + self.lower_weight_decay) / 2
 
     def cert_params(self):
+        """ Get the Certification Parameter Blob
+
+        Returns
+        -------
+        params : dict
+            Certification parameter blob
+        """
         params = {
             'type': 'classifier',
             'loss': self._cert_loss,
@@ -124,30 +148,49 @@ class LinearSVM(svm.LinearSVC, CertifiableMixin):
         else:
             return np.mean(np.maximum(1 - Y * (X.dot(w) + b), 0))
 
-    def _cert_loss_cvx(self, cvx_x, y=None, w=None):
-        return cvx.Minimize(1 - y * cvx_dot(w.flatten(), cvx_x))
+    def _cert_loss_cvx(self, cvx_x, y=None, w=None, project=None):
+        """ Hinge Loss CVX Optimization Problem
+
+        Parameters
+        ----------
+        cvx_x
+        y : int
+            Data label
+        w : np.ndarray of shape (dimensions,)
+            Parameters
+        project : np.ndarray of shape ()
+
+        Returns
+        -------
+        loss_cvx
+            CVX optimization objective
+        """
+        if project is not None:
+            w = project.dot(w.reshape(-1))
+        loss_cvx = cvx.Maximize(1 - y * cvx_dot(w.flatten(), cvx_x))
+        return loss_cvx
 
     def _cert_loss_grad(self, X, Y, w=None, b=None):
         """ Gradient of Hinge Loss
 
-            Parameters
-            ----------
-            w : np.ndarray of shape (dimensions,)
-                Coefficients
-            b : float
-                Intercept
-            X : np.ndarray of shape (instances, dimensions)
-                Input Features
-            Y : np.ndarray of shape (instances,)
-                Input Labels
+        Parameters
+        ----------
+        w : np.ndarray of shape (dimensions,)
+            Coefficients
+        b : float
+            Intercept
+        X : np.ndarray of shape (instances, dimensions)
+            Input Features
+        Y : np.ndarray of shape (instances,)
+            Input Labels
 
-            Returns
-            -------
-            grad_w : np.ndarray of shape (dimensions,)
-                Gradient of coefficients
-            grad_b : float
-                Gradient of intercept
-            """
+        Returns
+        -------
+        grad_w : np.ndarray of shape (dimensions,)
+            Gradient of coefficients
+        grad_b : float
+            Gradient of intercept
+        """
         if w is None or b is None:
             w = self.coef_.flatten()
             b = self.intercept_.flatten()

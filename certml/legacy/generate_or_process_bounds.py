@@ -1,4 +1,11 @@
-"""Generate or Process Bounds"""
+"""Generate or Process Bounds
+
+To run this file, use the commands:
+$ python generate_or_process_bounds.py mnist_17 --percentile 70
+$ python generate_or_process_bounds.py dogfish --percentile 7
+$ python generate_or_process_bounds.py enron --percentile 70
+$ generate_or_process_bounds.py imdb --percentile 10
+"""
 
 import argparse
 import numpy as np

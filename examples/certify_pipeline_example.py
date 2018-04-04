@@ -8,21 +8,22 @@ from sklearn.datasets import make_blobs
 import matplotlib.pyplot as plt
 import numpy as np
 
-x, y = make_blobs(n_samples=100, n_features=2, centers=2)
+x, y = make_blobs(n_samples=100, n_features=4, centers=2)
+y = (y * 2) - 1
 
 steps = [
-    ('Data Oracle', DataOracle(mode='sphere', radius=5)),
-    ('Linear SVM', LinearSVM(upper_params_norm_sq=1, use_bias=True))
+    ('Data Oracle', DataOracle(mode='sphere', radius=50)),
+    ('Linear SVM', LinearSVM(upper_params_norm_sq=0.005, use_bias=True))
 ]
 
+# Setup Machine Learning Pipeline
 pipeline = Pipeline(steps)
-
 pipeline.fit_trusted(x, y)
 pipeline.fit(x, y)
 
 pred = pipeline.predict(x)
 
-cert_params = pipeline.cert_params()
+#cert_params = pipeline.cert_params()
 
 bounds = UpperBound(pipeline=pipeline, norm_sq_constraint=1,
                     max_iter=100, num_iter_to_throw_out=10,
